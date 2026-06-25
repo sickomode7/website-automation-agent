@@ -74,14 +74,26 @@ const functionDeclarations: FunctionDeclaration[] = [
         },
     },
     {
+        name: 'typeInField',
+        description: 'Locate an input or textarea element by its visible label text or placeholder text and fill it with text.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                label: { type: SchemaType.STRING, description: 'The visible label or placeholder of the input field (e.g. "Bug Title" or "Description").' },
+                text: { type: SchemaType.STRING, description: 'The text to type.' }
+            },
+            required: ['label', 'text']
+        }
+    },
+    {
         name: 'closeBrowser',
         description: 'Close the browser instance.',
     },
 ];
 
-// Initialize the model (Gemini 2.5 Flash)
+// Initialize the model (Gemini 3.1 Flash-Lite)
 export const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.1-flash-lite',
     tools: [{ functionDeclarations }],
     systemInstruction: 'You are a browser automation agent. Use the provided tools to complete web tasks step by step. Always take a screenshot before and after each action to verify state.',
 });
@@ -94,7 +106,7 @@ export async function runAgent(objective: string) {
     
     const history: any[] = [];
     
-    let screenshotBuffer = await tools.takeScreenshot();
+    let screenshotBuffer = await tools.takeScreenshot('init');
     let messageParts: any[] = [
         { text: objective }
     ];
@@ -156,7 +168,7 @@ export async function runAgent(objective: string) {
                                     toolResult = { success: true };
                                     break;
                                 case 'takeScreenshot':
-                                    await tools.takeScreenshot();
+                                    await tools.takeScreenshot('manual');
                                     toolResult = { success: true };
                                     break;
                                 case 'clickOnScreen':
@@ -169,6 +181,10 @@ export async function runAgent(objective: string) {
                                     break;
                                 case 'sendKeys':
                                     await tools.sendKeys(args.text);
+                                    toolResult = { success: true };
+                                    break;
+                                case 'typeInField':
+                                    await tools.typeInField(args.label, args.text);
                                     toolResult = { success: true };
                                     break;
                                 case 'scroll':
@@ -216,7 +232,8 @@ export async function runAgent(objective: string) {
                     parts: [{ text: "I have received the function execution results. Please provide the latest screenshot so I can verify the state." }]
                 });
 
-                screenshotBuffer = await tools.takeScreenshot();
+                const callNames = functionCalls.map(c => c.name).join('_');
+                screenshotBuffer = await tools.takeScreenshot(callNames);
                 messageParts = [];
                 if (screenshotBuffer.length > 0) {
                     messageParts.push({
